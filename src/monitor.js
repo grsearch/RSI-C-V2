@@ -1291,6 +1291,16 @@ class TokenMonitor extends EventEmitter {
     rec.pnlPct    = parseFloat(safePnlPct.toFixed(2));
     rec.pnlSol    = parseFloat((safeSolOut - safeSolIn).toFixed(6));
 
+    // ★ 同步更新 _allTradeRecords 中的对应记录（修复引用不一致导致前端显示"持仓中"）
+    const globalRec = _allTradeRecords.find(r => r.id === rec.id);
+    if (globalRec && globalRec !== rec) {
+      globalRec.exitAt     = rec.exitAt;
+      globalRec.exitReason = rec.exitReason;
+      globalRec.solOut     = rec.solOut;
+      globalRec.pnlPct    = rec.pnlPct;
+      globalRec.pnlSol    = rec.pnlSol;
+    }
+
     dataStore.updateTrade(rec.id, {
       exitAt:     rec.exitAt,
       exitReason: rec.exitReason,
