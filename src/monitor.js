@@ -1178,10 +1178,15 @@ class TokenMonitor extends EventEmitter {
     } else {
       try {
         const result = await trader.sell(state.address, state.symbol, state.position, isStopLoss);
-        const solOut  = result.solOut ?? 0;
+        const solOut  = Number.isFinite(result.solOut) ? result.solOut : 0;
         const solIn   = state.position?.solIn ?? TRADE_SOL;
         const pnlPct  = solIn > 0 ? (solOut - solIn) / solIn * 100 : 0;
         const pnlSol  = solOut - solIn;
+
+        if (!Number.isFinite(result.solOut)) {
+          logger.warn('[Monitor] ⚠️ SELL #%d %s solOut 缺失/异常 (raw=%s)，链上已卖出但无法计算盈亏',
+            tradeNum, state.symbol, result.solOut);
+        }
 
         state.inPosition = false;
         this._addTradeLog(state, { type: 'SELL', symbol: state.symbol, reason,
@@ -1274,11 +1279,17 @@ class TokenMonitor extends EventEmitter {
   _finalizeTradeRecord(state, reason, solOut, pnlPct) {
     const rec = state.tradeRecords[state.tradeRecords.length - 1];
     if (!rec) return;
+
+    // ★ 防御 NaN / undefined — 确保写入合法数值，否则前端显示"持仓中"
+    const safeSolOut = Number.isFinite(solOut) ? solOut : 0;
+    const safePnlPct = Number.isFinite(pnlPct) ? pnlPct : (safeSolOut > 0 && rec.solIn > 0 ? (safeSolOut - rec.solIn) / rec.solIn * 100 : -100);
+    const safeSolIn  = state.position?.solIn ?? rec.solIn ?? 0;
+
     rec.exitAt     = Date.now();
     rec.exitReason = reason;
-    rec.solOut     = parseFloat(solOut.toFixed(6));
-    rec.pnlPct    = parseFloat(pnlPct.toFixed(2));
-    rec.pnlSol    = parseFloat((solOut - (state.position?.solIn ?? 0)).toFixed(6));
+    rec.solOut     = parseFloat(safeSolOut.toFixed(6));
+    rec.pnlPct    = parseFloat(safePnlPct.toFixed(2));
+    rec.pnlSol    = parseFloat((safeSolOut - safeSolIn).toFixed(6));
 
     dataStore.updateTrade(rec.id, {
       exitAt:     rec.exitAt,

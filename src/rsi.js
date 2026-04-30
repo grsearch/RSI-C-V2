@@ -29,7 +29,7 @@ const VOL_EXIT_CONSECUTIVE = parseInt(process.env.VOL_EXIT_CONSECUTIVE || '3', 1
 const VOL_EXIT_RATIO      = parseFloat(process.env.VOL_EXIT_RATIO     || '0.3');
 const VOL_EXIT_LOOKBACK   = parseInt(process.env.VOL_EXIT_LOOKBACK    || '4', 10);
 // ★ 量能萎缩出场总开关（默认 false，彻底关闭此出场逻辑）
-const VOL_DECAY_EXIT_ENABLED = (process.env.VOL_DECAY_EXIT_ENABLED || 'true') === 'true';
+const VOL_DECAY_EXIT_ENABLED = (process.env.VOL_DECAY_EXIT_ENABLED || 'false') === 'true';
 const SKIP_FIRST_CANDLES  = parseInt(process.env.SKIP_FIRST_CANDLES   || '3', 10);
 
 // 止盈止损
