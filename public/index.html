@@ -310,8 +310,18 @@ function fmtAge(createdAt) {
 // ── 代币列表：排序 + 取当前页 ──
 function _getSortedTokens() {
   const arr = Array.from(_tokenData.values());
-  // 按24小时交易笔数从大到小排列
-  arr.sort((a, b) => (b.tradeCount || 0) - (a.tradeCount || 0));
+  // 按 X 24h 提及数 (xMentions.count) 从大到小排序
+  // 无数据或 error 的排到最后；count 相同时按 tradeCount 从大到小
+  const xmCount = t => {
+    const xm = t.xMentions;
+    if (xm && typeof xm.count === 'number') return xm.count;
+    return -1;  // null / error / 未拉取 → 排到最后
+  };
+  arr.sort((a, b) => {
+    const diff = xmCount(b) - xmCount(a);
+    if (diff !== 0) return diff;
+    return (b.tradeCount || 0) - (a.tradeCount || 0);
+  });
   return arr;
 }
 

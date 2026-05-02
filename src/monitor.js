@@ -33,7 +33,7 @@ const LP_EXIT           = parseFloat(process.env.LP_EXIT_USD         || '10000')
 const POLL_SEC          = parseInt(process.env.PRICE_POLL_SEC        || '1',  10);
 const KLINE_SEC         = parseInt(process.env.KLINE_INTERVAL_SEC    || '300', 10);
 const DRY_RUN           = (process.env.DRY_RUN || 'false') === 'true';
-const TRADE_SOL         = parseFloat(process.env.TRADE_SIZE_SOL      || '1');
+const TRADE_SOL         = parseFloat(process.env.TRADE_SIZE_SOL      || '2');
 const SELL_COOLDOWN_SEC = parseInt(process.env.SELL_COOLDOWN_SEC     || '1800', 10); // 默认30分钟
 // ★ V5-21: 最大持仓时间 - 防止僵持币长期占用资金
 //   持仓超过 N 秒强制卖出, 0 = 关闭. 默认 21600 = 6 小时

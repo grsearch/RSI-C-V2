@@ -134,7 +134,7 @@ http://YOUR_SERVER:3001/diag
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `TRADE_SIZE_SOL` | `1` | 每笔买入金额（SOL，**不是 0.2**） |
+| `TRADE_SIZE_SOL` | `2` | 每笔买入金额（SOL） |
 | `SELL_COOLDOWN_SEC` | `1800` | 卖出后冷却（秒，**30分钟**） |
 | `MAX_HOLD_SEC` | `21600` | 最大持仓时间（秒，**6小时**），超时强制卖出 reason=TIMEOUT_EXIT, 0=关闭 |
 
