@@ -55,10 +55,10 @@ const EMA_INSUFFICIENT_MODE = (process.env.EMA_INSUFFICIENT_MODE || 'strict').to
 //         RSI 超卖在下降趋势中只是趋势延续 → 容易继续跌（BELIEF 案例）
 //   计算：slope = (EMA99_now - EMA99_N根前) / EMA99_N根前
 //         slope < EMA_SLOPE_MIN_PCT → 拒绝买入
-//   默认 LOOKBACK=5 (5根×5分钟K线=25分钟窗口), MIN_PCT=-2 (斜率 > -2% 即允许买入)
+//   默认 LOOKBACK=5 (5根×5分钟K线=25分钟窗口), MIN_PCT=-1 (斜率 > -1% 才允许买入)
 const EMA_SLOPE_ENABLED  = (process.env.EMA_SLOPE_ENABLED || 'true') === 'true';
 const EMA_SLOPE_LOOKBACK = parseInt(process.env.EMA_SLOPE_LOOKBACK || '5', 10);
-const EMA_SLOPE_MIN_PCT  = parseFloat(process.env.EMA_SLOPE_MIN_PCT || '-2'); // -2 = 允许轻度下行（防接重飞刀，但不错过早期反弹）
+const EMA_SLOPE_MIN_PCT  = parseFloat(process.env.EMA_SLOPE_MIN_PCT || '-1'); // -1 = 仅允许轻微下行（防接飞刀）
 
 // ★ 产生买卖信号所需的最小已收盘K线数（低于此数量完全不产生信号，避免 RSI 不收敛误判）
 //   默认 max(SKIP_FIRST_CANDLES, RSI_PERIOD × 3) ≈ 21，这是 Wilder RSI 收敛所需
@@ -581,6 +581,9 @@ module.exports = {
   checkBuyVolume,
   checkVolumeDecay,
   checkStopLoss,
+  // ★ 导出 EMA 计算函数，供 monitor.js 在卖出轮询中检查斜率
+  calcEMA,
+  calcEMASlope,
   // ★ V5-22: 顶层导出 TRAILING_STOP_*, 修复 monitor.js 解构得到 undefined 的 bug
   //   原本只在 CONFIG 里, 导致启动日志显示 "激活线=+undefined% 移动止损=关闭"
   //   实际业务逻辑用 rsi.js 内部常量, 行为不受影响; 但日志会误导排查

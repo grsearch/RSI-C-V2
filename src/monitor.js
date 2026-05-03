@@ -13,12 +13,19 @@
 const EventEmitter = require('events');
 const { evaluateSignal, buildCandles, filterValidCandles, checkStopLoss,
         calcRSIWithState, stepRSI,
+        calcEMASlope,
         TRAILING_STOP_ENABLED, TRAILING_STOP_ACTIVATE, TRAILING_STOP_PCT } = require('./rsi');
 
 // RSI 卖出阈值（从 CONFIG 取，与 rsi.js 保持一致）
 const { CONFIG: RSI_CONFIG } = require('./rsi');
 const _RSI_SELL  = RSI_CONFIG.RSI_SELL;
 const _RSI_PANIC = RSI_CONFIG.RSI_PANIC;
+
+// ★ EMA99 斜率卖出门槛 — 趋势型退场，独立于买入门槛
+//   斜率 < EMA_SLOPE_SELL_PCT 时立即清仓（不等 RSI 下穿、不等止损）
+//   默认 -2% — 当 EMA99 在 lookback 窗口内累计跌超过 2%，视为趋势恶化
+const EMA_SLOPE_SELL_ENABLED = (process.env.EMA_SLOPE_SELL_ENABLED || 'true') === 'true';
+const EMA_SLOPE_SELL_PCT     = parseFloat(process.env.EMA_SLOPE_SELL_PCT || '-2');
 const trader    = require('./trader');
 const birdeye   = require('./birdeye');
 const HIST_BARS = parseInt(process.env.HIST_BARS || '150', 10); // 启动时拉取的历史K线根数
@@ -36,8 +43,8 @@ const DRY_RUN           = (process.env.DRY_RUN || 'false') === 'true';
 const TRADE_SOL         = parseFloat(process.env.TRADE_SIZE_SOL      || '2');
 const SELL_COOLDOWN_SEC = parseInt(process.env.SELL_COOLDOWN_SEC     || '1800', 10); // 默认30分钟
 // ★ V5-21: 最大持仓时间 - 防止僵持币长期占用资金
-//   持仓超过 N 秒强制卖出, 0 = 关闭. 默认 21600 = 6 小时
-const MAX_HOLD_SEC      = parseInt(process.env.MAX_HOLD_SEC          || '21600', 10);
+//   持仓超过 N 秒强制卖出, 0 = 关闭. 默认 7200 = 2 小时
+const MAX_HOLD_SEC      = parseInt(process.env.MAX_HOLD_SEC          || '7200', 10);
 const SL_POLL_SEC       = parseInt(process.env.SL_POLL_SEC           || '60', 10);
 const MAX_TOKENS        = parseInt(process.env.MAX_MONITOR_TOKENS    || '95', 10);  // ★ V5: 最大监控数
 const OVERVIEW_PATROL_SEC = parseInt(process.env.OVERVIEW_PATROL_SEC || '7200', 10); // ★ V5: FDV/LP巡检间隔(秒)
@@ -789,6 +796,26 @@ class TokenMonitor extends EventEmitter {
             // ★ V5-9: K线数不足 MIN_CANDLES_FOR_SIGNAL 时 RSI 未收敛，跳过所有 RSI 卖出逻辑
             if (len < RSI_CONFIG.MIN_CANDLES_FOR_SIGNAL) {
               continue; // 进入下一轮轮询
+            }
+
+            // ★ EMA99 斜率卖出 — 趋势型退场（优先级高于 RSI 下穿，低于超时和止损）
+            //   斜率 < EMA_SLOPE_SELL_PCT (默认 -2%) 时立即清仓
+            //   原理：EMA99 在 lookback 窗口内累计跌超 N%，趋势已恶化，不等 RSI 慢半拍
+            if (EMA_SLOPE_SELL_ENABLED && len >= RSI_CONFIG.EMA_PERIOD + RSI_CONFIG.EMA_SLOPE_LOOKBACK) {
+              const slope = calcEMASlope(closes, RSI_CONFIG.EMA_PERIOD, RSI_CONFIG.EMA_SLOPE_LOOKBACK);
+              if (slope && slope.slopePct < EMA_SLOPE_SELL_PCT) {
+                const lastSlopeSellTs = state._lastEmaSlopeSellTs ?? 0;
+                if (Date.now() - lastSlopeSellTs >= 2000) {
+                  state._lastEmaSlopeSellTs = Date.now();
+                  const reason = `EMA99_SLOPE_DOWN_EXIT(slope=${slope.slopePct.toFixed(3)}%<${EMA_SLOPE_SELL_PCT}%,lb=${RSI_CONFIG.EMA_SLOPE_LOOKBACK})`;
+                  logger.info('[Monitor] ⚡ EMA99斜率卖出 %s @ %.8f | %s',
+                    state.symbol, price, reason);
+                  this._doSell(state, reason).catch(err => {
+                    logger.error('[Monitor] EMA99斜率卖出失败 %s: %s', state.symbol, err.message);
+                  });
+                  continue;  // 已触发卖出，跳过本轮 RSI 检查
+                }
+              }
             }
 
             // ★ 用 stepRSI 计算实时 RSI（基于当前价格，而非等K线收盘）
